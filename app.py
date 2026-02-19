@@ -61,8 +61,11 @@ def crawl_and_analyze(start_url, max_pages=50, alpha=0.85):
     graph = nx.DiGraph()
     page_titles = {}
     page_status = {}
+    last_ping = time.time()
 
     headers = {"User-Agent": "PageRank-Analyzer/1.0 (Educational Tool)"}
+    session = requests.Session()
+    session.headers.update(headers)
 
     yield _sse("status", {"message": f"Starting crawl of {base_domain}...", "phase": "crawling"})
 
@@ -72,8 +75,13 @@ def crawl_and_analyze(start_url, max_pages=50, alpha=0.85):
         if url in visited:
             continue
 
+        # Send keepalive ping every 10 seconds to prevent Railway timeout
+        if time.time() - last_ping > 10:
+            yield ": keepalive\n\n"
+            last_ping = time.time()
+
         try:
-            response = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
+            response = session.get(url, timeout=5, allow_redirects=True)
             content_type = response.headers.get("Content-Type", "")
 
             if "text/html" not in content_type:
@@ -112,7 +120,7 @@ def crawl_and_analyze(start_url, max_pages=50, alpha=0.85):
                 "queued": len(to_visit),
             })
 
-            time.sleep(0.3)
+            time.sleep(0.15)
 
         except requests.RequestException:
             yield _sse("error_page", {"url": shorten_url(url, base_domain)})
@@ -220,7 +228,15 @@ async def analyze(url: str, max_pages: int = 50, alpha: float = 0.85):
         for event in crawl_and_analyze(url, max_pages=max_pages, alpha=alpha):
             yield event
 
-    return StreamingResponse(generate(), media_type="text/event-stream")
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 if __name__ == "__main__":
