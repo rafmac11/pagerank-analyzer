@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PageRank Analyzer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-primary: #0a0e17;
+  --bg-secondary: #111827;
+  --bg-card: #151d2e;
+  --bg-card-hover: #1a2540;
+  --border: #1e2d4a;
+  --border-glow: #2dd4bf33;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent: #2dd4bf;
+  --accent-dim: #2dd4bf22;
+  --accent-mid: #2dd4bf55;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info: #3b82f6;
+  --success: #10b981;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Outfit', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── Animated Background ─────────────────────────────────────────── */
+.bg-grid {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 60px 60px;
+  opacity: 0.15;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, black 20%, transparent 100%);
+}
+
+.bg-glow {
+  position: fixed; top: -200px; left: 50%; transform: translateX(-50%);
+  width: 800px; height: 600px; z-index: 0; pointer-events: none;
+  background: radial-gradient(ellipse, var(--accent-dim) 0%, transparent 70%);
+  opacity: 0.6;
+}
+
+/* ── Layout ──────────────────────────────────────────────────────── */
+.container {
+  position: relative; z-index: 1;
+  max-width: 1200px; margin: 0 auto; padding: 2rem;
+}
+
+/* ── Header ──────────────────────────────────────────────────────── */
+header {
+  text-align: center; padding: 4rem 0 3rem;
+}
+
+.logo {
+  font-size: 0.85rem; font-family: 'DM Mono', monospace;
+  color: var(--accent); letter-spacing: 3px; text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+h1 {
+  font-size: 3.2rem; font-weight: 800;
+  background: linear-gradient(135deg, #e2e8f0, #2dd4bf);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; line-height: 1.1; margin-bottom: 0.75rem;
+}
+
+header p {
+  color: var(--text-secondary); font-size: 1.1rem; font-weight: 300;
+  max-width: 500px; margin: 0 auto;
+}
+
+/* ── Input Section ───────────────────────────────────────────────── */
+.input-section {
+  max-width: 700px; margin: 0 auto 3rem; position: relative;
+}
+
+.input-row {
+  display: flex; gap: 0.75rem; margin-bottom: 1rem;
+}
+
+.url-input-wrap {
+  flex: 1; position: relative;
+}
+
+.url-input-wrap::before {
+  content: '🔗'; position: absolute; left: 1rem; top: 50%;
+  transform: translateY(-50%); font-size: 1rem; z-index: 2;
+}
+
+input[type="url"], input[type="text"] {
+  width: 100%; padding: 1rem 1rem 1rem 2.75rem;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 12px; color: var(--text-primary);
+  font-family: 'DM Mono', monospace; font-size: 0.95rem;
+  transition: all 0.3s;
+}
+
+input:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim), 0 0 30px var(--accent-dim);
+}
+
+.btn-analyze {
+  padding: 1rem 2rem; background: var(--accent);
+  color: var(--bg-primary); border: none; border-radius: 12px;
+  font-family: 'Outfit', sans-serif; font-size: 1rem; font-weight: 600;
+  cursor: pointer; transition: all 0.3s; white-space: nowrap;
+}
+
+.btn-analyze:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 30px var(--accent-mid);
+}
+
+.btn-analyze:disabled {
+  opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none;
+}
+
+.options-row {
+  display: flex; gap: 1.5rem; justify-content: center;
+  font-size: 0.85rem; color: var(--text-muted);
+}
+
+.option { display: flex; align-items: center; gap: 0.4rem; }
+
+.option input {
+  width: 70px; padding: 0.4rem 0.5rem; text-align: center;
+  font-size: 0.85rem;
+}
+
+.option label { font-family: 'DM Mono', monospace; }
+
+/* ── Progress ────────────────────────────────────────────────────── */
+#progress-section {
+  display: none; max-width: 700px; margin: 0 auto 3rem;
+}
+
+.progress-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 16px; padding: 2rem; text-align: center;
+}
+
+.progress-phase {
+  font-family: 'DM Mono', monospace; font-size: 0.8rem;
+  color: var(--accent); letter-spacing: 2px; text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+.progress-bar-bg {
+  width: 100%; height: 6px; background: var(--bg-primary);
+  border-radius: 3px; overflow: hidden; margin-bottom: 1rem;
+}
+
+.progress-bar-fill {
+  height: 100%; width: 0%; border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent), #06b6d4);
+  transition: width 0.4s ease;
+}
+
+.progress-text {
+  font-size: 0.9rem; color: var(--text-secondary);
+}
+
+.progress-url {
+  font-family: 'DM Mono', monospace; font-size: 0.8rem;
+  color: var(--text-muted); margin-top: 0.5rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ── Results ─────────────────────────────────────────────────────── */
+#results-section { display: none; }
+
+/* Stats Grid */
+.stats-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem; margin-bottom: 2.5rem;
+}
+
+.stat-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 14px; padding: 1.25rem 1.5rem;
+  transition: all 0.3s;
+}
+
+.stat-card:hover { border-color: var(--accent-mid); transform: translateY(-2px); }
+
+.stat-label {
+  font-size: 0.75rem; font-family: 'DM Mono', monospace;
+  color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase;
+  margin-bottom: 0.4rem;
+}
+
+.stat-value {
+  font-size: 1.8rem; font-weight: 700;
+  background: linear-gradient(135deg, var(--text-primary), var(--accent));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Tabs */
+.tabs {
+  display: flex; gap: 0.25rem; margin-bottom: 1.5rem;
+  background: var(--bg-secondary); border-radius: 12px; padding: 4px;
+  width: fit-content;
+}
+
+.tab {
+  padding: 0.6rem 1.25rem; border-radius: 10px; border: none;
+  background: transparent; color: var(--text-muted);
+  font-family: 'Outfit', sans-serif; font-size: 0.9rem; font-weight: 500;
+  cursor: pointer; transition: all 0.2s;
+}
+
+.tab.active { background: var(--bg-card); color: var(--accent); }
+.tab:hover:not(.active) { color: var(--text-secondary); }
+
+/* Tab panels */
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* Table */
+.table-wrap {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 16px; overflow: hidden;
+}
+
+table {
+  width: 100%; border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+thead th {
+  padding: 1rem 1.25rem; text-align: left;
+  font-family: 'DM Mono', monospace; font-size: 0.75rem;
+  color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase;
+  background: var(--bg-secondary); border-bottom: 1px solid var(--border);
+  cursor: pointer; user-select: none;
+}
+
+thead th:hover { color: var(--accent); }
+
+tbody tr { border-bottom: 1px solid var(--border); transition: background 0.15s; }
+tbody tr:hover { background: var(--bg-card-hover); }
+tbody tr:last-child { border-bottom: none; }
+
+td {
+  padding: 0.85rem 1.25rem; vertical-align: middle;
+}
+
+.rank-num {
+  font-family: 'DM Mono', monospace; font-weight: 500;
+  color: var(--accent); min-width: 2.5rem; display: inline-block;
+}
+
+.page-path {
+  font-family: 'DM Mono', monospace; font-size: 0.85rem;
+  color: var(--info); max-width: 300px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.page-title {
+  font-size: 0.8rem; color: var(--text-muted);
+  max-width: 300px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.score-bar-bg {
+  width: 80px; height: 4px; background: var(--bg-primary);
+  border-radius: 2px; overflow: hidden; display: inline-block;
+  vertical-align: middle; margin-right: 0.5rem;
+}
+
+.score-bar-fill {
+  height: 100%; border-radius: 2px;
+  background: linear-gradient(90deg, var(--accent), #06b6d4);
+}
+
+.score-val {
+  font-family: 'DM Mono', monospace; font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.link-count {
+  font-family: 'DM Mono', monospace; font-size: 0.85rem;
+  text-align: center;
+}
+
+/* Issues */
+.issues-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.25rem;
+}
+
+.issue-card {
+  background: var(--bg-card); border-radius: 14px; padding: 1.5rem;
+  border: 1px solid var(--border);
+}
+
+.issue-header {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.issue-icon { font-size: 1.2rem; }
+.issue-title { font-weight: 600; font-size: 1rem; }
+.issue-count {
+  font-family: 'DM Mono', monospace; font-size: 0.75rem;
+  background: var(--bg-primary); padding: 2px 8px;
+  border-radius: 99px; color: var(--text-muted); margin-left: auto;
+}
+
+.issue-list {
+  list-style: none; font-family: 'DM Mono', monospace;
+  font-size: 0.8rem; color: var(--text-secondary);
+}
+
+.issue-list li {
+  padding: 0.35rem 0; border-bottom: 1px solid var(--border);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.issue-list li:last-child { border-bottom: none; }
+
+.issue-tip {
+  margin-top: 1rem; padding: 0.75rem 1rem;
+  background: var(--accent-dim); border-radius: 8px;
+  font-size: 0.8rem; color: var(--accent); line-height: 1.5;
+}
+
+/* Network Graph */
+#graph-container {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 16px; overflow: hidden; position: relative;
+  height: 500px;
+}
+
+#graph-container svg { width: 100%; height: 100%; }
+
+.graph-tooltip {
+  position: absolute; padding: 0.5rem 0.75rem;
+  background: var(--bg-primary); border: 1px solid var(--accent);
+  border-radius: 8px; font-size: 0.8rem; pointer-events: none;
+  opacity: 0; transition: opacity 0.15s;
+  font-family: 'DM Mono', monospace;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+}
+
+/* Footer */
+footer {
+  text-align: center; padding: 3rem 0; color: var(--text-muted);
+  font-size: 0.8rem; font-family: 'DM Mono', monospace;
+}
+
+/* ── Animations ──────────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+  animation: fadeUp 0.5s ease forwards;
+}
+
+.stagger-1 { animation-delay: 0.05s; opacity: 0; }
+.stagger-2 { animation-delay: 0.1s; opacity: 0; }
+.stagger-3 { animation-delay: 0.15s; opacity: 0; }
+.stagger-4 { animation-delay: 0.2s; opacity: 0; }
+.stagger-5 { animation-delay: 0.25s; opacity: 0; }
+.stagger-6 { animation-delay: 0.3s; opacity: 0; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.pulsing { animation: pulse 1.5s ease-in-out infinite; }
+
+/* ── Responsive ──────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  h1 { font-size: 2rem; }
+  .container { padding: 1rem; }
+  .input-row { flex-direction: column; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .options-row { flex-wrap: wrap; justify-content: center; }
+  .tabs { overflow-x: auto; width: 100%; }
+  td, th { padding: 0.6rem 0.75rem; }
+}
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="bg-glow"></div>
+
+<div class="container">
+  <!-- Header -->
+  <header>
+    <div class="logo">⬡ PageRank Analyzer</div>
+    <h1>Map Your Site's Authority</h1>
+    <p>Crawl any website, calculate PageRank for every page, and find what to fix.</p>
+  </header>
+
+  <!-- Input -->
+  <div class="input-section">
+    <div class="input-row">
+      <div class="url-input-wrap">
+        <input type="url" id="urlInput" placeholder="https://yourwebsite.com" autofocus>
+      </div>
+      <button class="btn-analyze" id="btnAnalyze" onclick="startAnalysis()">Analyze</button>
+    </div>
+    <div class="options-row">
+      <div class="option">
+        <label for="maxPages">Max pages</label>
+        <input type="text" id="maxPages" value="50">
+      </div>
+      <div class="option">
+        <label for="alpha">α (damping)</label>
+        <input type="text" id="alpha" value="0.85">
+      </div>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div id="progress-section">
+    <div class="progress-card">
+      <div class="progress-phase pulsing" id="progressPhase">Crawling</div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progressBar"></div>
+      </div>
+      <div class="progress-text" id="progressText">Starting...</div>
+      <div class="progress-url" id="progressUrl">&nbsp;</div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div id="results-section">
+    <!-- Stats -->
+    <div class="stats-grid" id="statsGrid"></div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('rankings')">Rankings</button>
+      <button class="tab" onclick="switchTab('issues')">Issues</button>
+      <button class="tab" onclick="switchTab('graph')">Network</button>
+    </div>
+
+    <!-- Rankings Tab -->
+    <div class="tab-panel active" id="tab-rankings">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th onclick="sortTable('rank')">#</th>
+              <th onclick="sortTable('path')">Page</th>
+              <th onclick="sortTable('score')">PageRank</th>
+              <th onclick="sortTable('links_in')">In</th>
+              <th onclick="sortTable('links_out')">Out</th>
+            </tr>
+          </thead>
+          <tbody id="rankingsBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Issues Tab -->
+    <div class="tab-panel" id="tab-issues">
+      <div class="issues-grid" id="issuesGrid"></div>
+    </div>
+
+    <!-- Graph Tab -->
+    <div class="tab-panel" id="tab-graph">
+      <div id="graph-container">
+        <div class="graph-tooltip" id="graphTooltip"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>Built with NetworkX + D3.js · PageRank by Brin &amp; Page, 1998</footer>
+</div>
+
+<script>
+// ── State ───────────────────────────────────────────────────────────
+let resultData = null;
+let currentSort = { key: 'rank', asc: true };
+
+// ── Start Analysis ──────────────────────────────────────────────────
+function startAnalysis() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) return;
+
+  const maxPages = parseInt(document.getElementById('maxPages').value) || 50;
+  const alpha = parseFloat(document.getElementById('alpha').value) || 0.85;
+
+  // UI state
+  document.getElementById('btnAnalyze').disabled = true;
+  document.getElementById('btnAnalyze').textContent = 'Crawling...';
+  document.getElementById('progress-section').style.display = 'block';
+  document.getElementById('results-section').style.display = 'none';
+
+  const params = new URLSearchParams({ url, max_pages: maxPages, alpha });
+  const eventSource = new EventSource(`/api/analyze?${params}`);
+
+  eventSource.addEventListener('progress', (e) => {
+    const d = JSON.parse(e.data);
+    const pct = Math.round((d.crawled / d.max_pages) * 100);
+    document.getElementById('progressBar').style.width = pct + '%';
+    document.getElementById('progressText').textContent =
+      `${d.crawled} / ${d.max_pages} pages · ${d.links_found} links found · ${d.queued} queued`;
+    document.getElementById('progressUrl').textContent = d.current_url;
+  });
+
+  eventSource.addEventListener('status', (e) => {
+    const d = JSON.parse(e.data);
+    document.getElementById('progressPhase').textContent = d.phase === 'analyzing' ? 'Analyzing' : 'Crawling';
+    if (d.phase === 'analyzing') {
+      document.getElementById('progressBar').style.width = '100%';
+      document.getElementById('progressText').textContent = d.message;
+    }
+  });
+
+  eventSource.addEventListener('done', (e) => {
+    eventSource.close();
+    resultData = JSON.parse(e.data);
+
+    document.getElementById('btnAnalyze').disabled = false;
+    document.getElementById('btnAnalyze').textContent = 'Analyze';
+    document.getElementById('progress-section').style.display = 'none';
+
+    if (resultData.error) {
+      alert(resultData.error);
+      return;
+    }
+
+    renderResults(resultData);
+  });
+
+  eventSource.onerror = () => {
+    eventSource.close();
+    document.getElementById('btnAnalyze').disabled = false;
+    document.getElementById('btnAnalyze').textContent = 'Analyze';
+    document.getElementById('progressText').textContent = 'Connection lost. Try again.';
+  };
+}
+
+// Allow Enter key
+document.getElementById('urlInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') startAnalysis();
+});
+
+// ── Render Results ──────────────────────────────────────────────────
+function renderResults(data) {
+  document.getElementById('results-section').style.display = 'block';
+
+  // Stats
+  const s = data.stats;
+  const statsHTML = [
+    { label: 'Pages', value: s.total_pages },
+    { label: 'Links', value: s.total_links },
+    { label: 'Avg Links', value: s.avg_links },
+    { label: 'Orphans', value: s.orphan_count },
+    { label: 'Dead Ends', value: s.dead_end_count },
+    { label: 'Weak Pages', value: s.weak_count },
+  ].map((item, i) => `
+    <div class="stat-card animate-in stagger-${i + 1}">
+      <div class="stat-label">${item.label}</div>
+      <div class="stat-value">${item.value}</div>
+    </div>
+  `).join('');
+  document.getElementById('statsGrid').innerHTML = statsHTML;
+
+  // Rankings table
+  renderTable(data.pages);
+
+  // Issues
+  renderIssues(data.issues, data.stats);
+
+  // Graph
+  setTimeout(() => renderGraph(data.graph), 100);
+}
+
+// ── Table ───────────────────────────────────────────────────────────
+function renderTable(pages) {
+  const maxScore = pages.length > 0 ? pages[0].score : 1;
+  const html = pages.map(p => `
+    <tr>
+      <td><span class="rank-num">${p.rank}</span></td>
+      <td>
+        <div class="page-path" title="${p.url}">${p.path}</div>
+        <div class="page-title">${p.title || ''}</div>
+      </td>
+      <td>
+        <span class="score-bar-bg"><span class="score-bar-fill" style="width:${(p.score / maxScore * 100)}%"></span></span>
+        <span class="score-val">${p.score.toFixed(6)}</span>
+      </td>
+      <td class="link-count">${p.links_in}</td>
+      <td class="link-count">${p.links_out}</td>
+    </tr>
+  `).join('');
+  document.getElementById('rankingsBody').innerHTML = html;
+}
+
+function sortTable(key) {
+  if (currentSort.key === key) {
+    currentSort.asc = !currentSort.asc;
+  } else {
+    currentSort.key = key;
+    currentSort.asc = key === 'path' ? true : false;
+  }
+
+  resultData.pages.sort((a, b) => {
+    let va = a[key], vb = b[key];
+    if (typeof va === 'string') return currentSort.asc ? va.localeCompare(vb) : vb.localeCompare(va);
+    return currentSort.asc ? va - vb : vb - va;
+  });
+
+  // Re-rank
+  resultData.pages.forEach((p, i) => p.rank = i + 1);
+  renderTable(resultData.pages);
+}
+
+// ── Issues ──────────────────────────────────────────────────────────
+function renderIssues(issues, stats) {
+  const cards = [];
+
+  if (issues.orphans.length > 0) {
+    cards.push(issueCard('🔴', 'Orphan Pages', 'No links point here — invisible to search engines.',
+      issues.orphans, stats.orphan_count, 'Add internal links TO these pages from your navigation or related content.'));
+  }
+
+  if (issues.dead_ends.length > 0) {
+    cards.push(issueCard('🟠', 'Dead-End Pages', 'No outgoing links — visitor traps.',
+      issues.dead_ends, stats.dead_end_count, 'Add "Related" or "Next" links FROM these pages to keep visitors browsing.'));
+  }
+
+  if (issues.weak.length > 0) {
+    cards.push(issueCard('🟡', 'Low Authority', 'PageRank well below average.',
+      issues.weak, stats.weak_count, 'Link to these from your highest-ranked pages to boost their authority.'));
+  }
+
+  if (cards.length === 0) {
+    cards.push(`
+      <div class="issue-card" style="text-align:center; grid-column: 1 / -1; padding: 3rem;">
+        <div style="font-size: 2rem; margin-bottom: 1rem;">✅</div>
+        <div style="font-size: 1.1rem; font-weight: 600;">No major issues found!</div>
+        <div style="color: var(--text-muted); margin-top: 0.5rem;">Your internal linking looks healthy.</div>
+      </div>
+    `);
+  }
+
+  document.getElementById('issuesGrid').innerHTML = cards.join('');
+}
+
+function issueCard(icon, title, desc, items, count, tip) {
+  const list = items.map(i => `<li>${i}</li>`).join('');
+  return `
+    <div class="issue-card">
+      <div class="issue-header">
+        <span class="issue-icon">${icon}</span>
+        <span class="issue-title">${title}</span>
+        <span class="issue-count">${count}</span>
+      </div>
+      <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1rem;">${desc}</p>
+      <ul class="issue-list">${list}</ul>
+      <div class="issue-tip">💡 ${tip}</div>
+    </div>
+  `;
+}
+
+// ── Tabs ────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+
+  if (name === 'graph' && resultData) {
+    setTimeout(() => renderGraph(resultData.graph), 50);
+  }
+}
+
+// ── D3 Network Graph ────────────────────────────────────────────────
+let graphRendered = false;
+
+function renderGraph(graphData) {
+  if (graphRendered) return;
+  graphRendered = true;
+
+  const container = document.getElementById('graph-container');
+  const width = container.clientWidth;
+  const height = container.clientHeight;
+  const tooltip = document.getElementById('graphTooltip');
+
+  // Clear
+  d3.select('#graph-container svg').remove();
+
+  const svg = d3.select('#graph-container')
+    .append('svg')
+    .attr('width', width)
+    .attr('height', height);
+
+  // Scale node sizes by PageRank
+  const maxScore = d3.max(graphData.nodes, d => d.score) || 1;
+  const sizeScale = d3.scaleSqrt().domain([0, maxScore]).range([3, 20]);
+
+  const simulation = d3.forceSimulation(graphData.nodes)
+    .force('link', d3.forceLink(graphData.links).id(d => d.id).distance(60).strength(0.3))
+    .force('charge', d3.forceManyBody().strength(-80))
+    .force('center', d3.forceCenter(width / 2, height / 2))
+    .force('collision', d3.forceCollide().radius(d => sizeScale(d.score) + 2));
+
+  // Links
+  const link = svg.append('g')
+    .selectAll('line')
+    .data(graphData.links)
+    .enter().append('line')
+    .attr('stroke', '#1e2d4a')
+    .attr('stroke-width', 0.5)
+    .attr('stroke-opacity', 0.4);
+
+  // Nodes
+  const node = svg.append('g')
+    .selectAll('circle')
+    .data(graphData.nodes)
+    .enter().append('circle')
+    .attr('r', d => sizeScale(d.score))
+    .attr('fill', d => {
+      const t = d.score / maxScore;
+      return d3.interpolateRgb('#1e3a5f', '#2dd4bf')(t);
+    })
+    .attr('stroke', '#0a0e17')
+    .attr('stroke-width', 1)
+    .style('cursor', 'pointer')
+    .call(d3.drag()
+      .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
+      .on('end', (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
+    );
+
+  // Hover
+  node.on('mouseover', (e, d) => {
+    tooltip.style.opacity = '1';
+    tooltip.innerHTML = `
+      <strong>${d.id}</strong><br>
+      ${d.title ? d.title + '<br>' : ''}
+      Score: ${d.score.toFixed(6)}<br>
+      Links in: ${d.links_in}
+    `;
+  })
+  .on('mousemove', (e) => {
+    const rect = container.getBoundingClientRect();
+    tooltip.style.left = (e.clientX - rect.left + 12) + 'px';
+    tooltip.style.top = (e.clientY - rect.top - 10) + 'px';
+  })
+  .on('mouseout', () => { tooltip.style.opacity = '0'; });
+
+  simulation.on('tick', () => {
+    link
+      .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    node
+      .attr('cx', d => d.x).attr('cy', d => d.y);
+  });
+}
+</script>
+</body>
+</html>
