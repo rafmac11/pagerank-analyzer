@@ -571,12 +571,12 @@ function renderResults(data) {
 
   const s = data.stats;
   const statsHTML = [
-    { label: 'Pages', value: s.total_pages },
+    { label: 'Crawled', value: s.pages_crawled },
+    { label: 'Discovered', value: s.total_pages },
     { label: 'Links', value: s.total_links },
     { label: 'Avg Links', value: s.avg_links },
     { label: 'Orphans', value: s.orphan_count },
     { label: 'Dead Ends', value: s.dead_end_count },
-    { label: 'Weak Pages', value: s.weak_count },
   ].map((item, i) => `
     <div class="stat-card animate-in stagger-${i + 1}">
       <div class="stat-label">${item.label}</div>
@@ -594,10 +594,10 @@ function renderResults(data) {
 function renderTable(pages) {
   const maxScore = pages.length > 0 ? pages[0].score : 1;
   const html = pages.map(p => `
-    <tr>
+    <tr style="${!p.crawled ? 'opacity: 0.5;' : ''}">
       <td><span class="rank-num">${p.rank}</span></td>
       <td>
-        <div class="page-path" title="${p.url}">${p.path}</div>
+        <div class="page-path" title="${p.url}">${p.path} ${!p.crawled ? '<span style="font-size:0.7rem;color:var(--text-muted);font-family:DM Mono,monospace;">(not crawled)</span>' : ''}</div>
         <div class="page-title">${p.title || ''}</div>
       </td>
       <td>
@@ -646,6 +646,12 @@ function renderIssues(issues, stats) {
   if (issues.weak.length > 0) {
     cards.push(issueCard('🟡', 'Low Authority', 'PageRank well below average.',
       issues.weak, stats.weak_count, 'Link to these from your highest-ranked pages to boost their authority.'));
+  }
+
+  if (issues.not_crawled && issues.not_crawled.length > 0) {
+    cards.push(issueCard('🔵', 'Not Crawled', 'Found via links but not visited yet. Increase "Max pages" to crawl these.',
+      issues.not_crawled, stats.not_crawled_count || issues.not_crawled.length,
+      'These pages exist on your site but weren\'t analyzed. Try increasing the max pages setting to cover your full site.'));
   }
 
   if (cards.length === 0) {
