@@ -37,7 +37,6 @@ body {
   overflow-x: hidden;
 }
 
-/* ── Animated Background ─────────────────────────────────────────── */
 .bg-grid {
   position: fixed; inset: 0; z-index: 0; pointer-events: none;
   background-image:
@@ -55,13 +54,11 @@ body {
   opacity: 0.6;
 }
 
-/* ── Layout ──────────────────────────────────────────────────────── */
 .container {
   position: relative; z-index: 1;
   max-width: 1200px; margin: 0 auto; padding: 2rem;
 }
 
-/* ── Header ──────────────────────────────────────────────────────── */
 header {
   text-align: center; padding: 4rem 0 3rem;
 }
@@ -84,7 +81,6 @@ header p {
   max-width: 500px; margin: 0 auto;
 }
 
-/* ── Input Section ───────────────────────────────────────────────── */
 .input-section {
   max-width: 700px; margin: 0 auto 3rem; position: relative;
 }
@@ -145,7 +141,6 @@ input:focus {
 
 .option label { font-family: 'DM Mono', monospace; }
 
-/* ── Progress ────────────────────────────────────────────────────── */
 #progress-section {
   display: none; max-width: 700px; margin: 0 auto 3rem;
 }
@@ -182,10 +177,8 @@ input:focus {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-/* ── Results ─────────────────────────────────────────────────────── */
 #results-section { display: none; }
 
-/* Stats Grid */
 .stats-grid {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 1rem; margin-bottom: 2.5rem;
@@ -212,7 +205,6 @@ input:focus {
   background-clip: text;
 }
 
-/* Tabs */
 .tabs {
   display: flex; gap: 0.25rem; margin-bottom: 1.5rem;
   background: var(--bg-secondary); border-radius: 12px; padding: 4px;
@@ -229,11 +221,9 @@ input:focus {
 .tab.active { background: var(--bg-card); color: var(--accent); }
 .tab:hover:not(.active) { color: var(--text-secondary); }
 
-/* Tab panels */
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
 
-/* Table */
 .table-wrap {
   background: var(--bg-card); border: 1px solid var(--border);
   border-radius: 16px; overflow: hidden;
@@ -258,9 +248,7 @@ tbody tr { border-bottom: 1px solid var(--border); transition: background 0.15s;
 tbody tr:hover { background: var(--bg-card-hover); }
 tbody tr:last-child { border-bottom: none; }
 
-td {
-  padding: 0.85rem 1.25rem; vertical-align: middle;
-}
+td { padding: 0.85rem 1.25rem; vertical-align: middle; }
 
 .rank-num {
   font-family: 'DM Mono', monospace; font-weight: 500;
@@ -300,7 +288,6 @@ td {
   text-align: center;
 }
 
-/* Issues */
 .issues-grid {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 1.25rem;
@@ -342,7 +329,6 @@ td {
   font-size: 0.8rem; color: var(--accent); line-height: 1.5;
 }
 
-/* Network Graph */
 #graph-container {
   background: var(--bg-card); border: 1px solid var(--border);
   border-radius: 16px; overflow: hidden; position: relative;
@@ -360,21 +346,17 @@ td {
   box-shadow: 0 4px 20px rgba(0,0,0,0.5);
 }
 
-/* Footer */
 footer {
   text-align: center; padding: 3rem 0; color: var(--text-muted);
   font-size: 0.8rem; font-family: 'DM Mono', monospace;
 }
 
-/* ── Animations ──────────────────────────────────────────────────── */
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-.animate-in {
-  animation: fadeUp 0.5s ease forwards;
-}
+.animate-in { animation: fadeUp 0.5s ease forwards; }
 
 .stagger-1 { animation-delay: 0.05s; opacity: 0; }
 .stagger-2 { animation-delay: 0.1s; opacity: 0; }
@@ -390,7 +372,6 @@ footer {
 
 .pulsing { animation: pulse 1.5s ease-in-out infinite; }
 
-/* ── Responsive ──────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   h1 { font-size: 2rem; }
   .container { padding: 1rem; }
@@ -408,14 +389,12 @@ footer {
 <div class="bg-glow"></div>
 
 <div class="container">
-  <!-- Header -->
   <header>
     <div class="logo">⬡ PageRank Analyzer</div>
     <h1>Map Your Site's Authority</h1>
     <p>Crawl any website, calculate PageRank for every page, and find what to fix.</p>
   </header>
 
-  <!-- Input -->
   <div class="input-section">
     <div class="input-row">
       <div class="url-input-wrap">
@@ -435,7 +414,6 @@ footer {
     </div>
   </div>
 
-  <!-- Progress -->
   <div id="progress-section">
     <div class="progress-card">
       <div class="progress-phase pulsing" id="progressPhase">Crawling</div>
@@ -447,19 +425,15 @@ footer {
     </div>
   </div>
 
-  <!-- Results -->
   <div id="results-section">
-    <!-- Stats -->
     <div class="stats-grid" id="statsGrid"></div>
 
-    <!-- Tabs -->
     <div class="tabs">
       <button class="tab active" onclick="switchTab('rankings')">Rankings</button>
       <button class="tab" onclick="switchTab('issues')">Issues</button>
       <button class="tab" onclick="switchTab('graph')">Network</button>
     </div>
 
-    <!-- Rankings Tab -->
     <div class="tab-panel active" id="tab-rankings">
       <div class="table-wrap">
         <table>
@@ -477,12 +451,10 @@ footer {
       </div>
     </div>
 
-    <!-- Issues Tab -->
     <div class="tab-panel" id="tab-issues">
       <div class="issues-grid" id="issuesGrid"></div>
     </div>
 
-    <!-- Graph Tab -->
     <div class="tab-panel" id="tab-graph">
       <div id="graph-container">
         <div class="graph-tooltip" id="graphTooltip"></div>
@@ -497,67 +469,98 @@ footer {
 // ── State ───────────────────────────────────────────────────────────
 let resultData = null;
 let currentSort = { key: 'rank', asc: true };
+let pollInterval = null;
 
-// ── Start Analysis ──────────────────────────────────────────────────
-function startAnalysis() {
+// ── Start Analysis (polling approach) ───────────────────────────────
+async function startAnalysis() {
   const url = document.getElementById('urlInput').value.trim();
   if (!url) return;
 
   const maxPages = parseInt(document.getElementById('maxPages').value) || 50;
   const alpha = parseFloat(document.getElementById('alpha').value) || 0.85;
 
-  // UI state
   document.getElementById('btnAnalyze').disabled = true;
   document.getElementById('btnAnalyze').textContent = 'Crawling...';
   document.getElementById('progress-section').style.display = 'block';
   document.getElementById('results-section').style.display = 'none';
+  graphRendered = false;
 
-  const params = new URLSearchParams({ url, max_pages: maxPages, alpha });
-  const eventSource = new EventSource(`/api/analyze?${params}`);
+  try {
+    // Step 1: Start the job
+    const params = new URLSearchParams({ url, max_pages: maxPages, alpha });
+    const startRes = await fetch(`/api/start?${params}`);
+    const startData = await startRes.json();
+    const jobId = startData.job_id;
 
-  eventSource.addEventListener('progress', (e) => {
-    const d = JSON.parse(e.data);
-    const pct = Math.round((d.crawled / d.max_pages) * 100);
-    document.getElementById('progressBar').style.width = pct + '%';
-    document.getElementById('progressText').textContent =
-      `${d.crawled} / ${d.max_pages} pages · ${d.links_found} links found · ${d.queued} queued`;
-    document.getElementById('progressUrl').textContent = d.current_url;
-  });
+    // Step 2: Poll for progress every 800ms
+    let pollCount = 0;
+    const maxPolls = 300; // 300 * 800ms = 4 min timeout
 
-  eventSource.addEventListener('status', (e) => {
-    const d = JSON.parse(e.data);
-    document.getElementById('progressPhase').textContent = d.phase === 'analyzing' ? 'Analyzing' : 'Crawling';
-    if (d.phase === 'analyzing') {
-      document.getElementById('progressBar').style.width = '100%';
-      document.getElementById('progressText').textContent = d.message;
-    }
-  });
+    pollInterval = setInterval(async () => {
+      pollCount++;
+      if (pollCount > maxPolls) {
+        clearInterval(pollInterval);
+        alert('Analysis timed out. Try a smaller number of pages.');
+        resetUI();
+        return;
+      }
+      try {
+        const statusRes = await fetch(`/api/status/${jobId}`);
+        const status = await statusRes.json();
 
-  eventSource.addEventListener('done', (e) => {
-    eventSource.close();
-    resultData = JSON.parse(e.data);
+        if (status.status === 'crawling') {
+          const pct = Math.round((status.crawled / status.max_pages) * 100);
+          document.getElementById('progressPhase').textContent = 'Crawling';
+          document.getElementById('progressBar').style.width = pct + '%';
+          document.getElementById('progressText').textContent =
+            `${status.crawled} / ${status.max_pages} pages · ${status.links_found} links · ${status.queued} queued`;
+          document.getElementById('progressUrl').textContent = status.current_url;
+        }
 
-    document.getElementById('btnAnalyze').disabled = false;
-    document.getElementById('btnAnalyze').textContent = 'Analyze';
-    document.getElementById('progress-section').style.display = 'none';
+        if (status.status === 'analyzing') {
+          document.getElementById('progressPhase').textContent = 'Analyzing';
+          document.getElementById('progressBar').style.width = '100%';
+          document.getElementById('progressText').textContent = 'Calculating PageRank...';
+        }
 
-    if (resultData.error) {
-      alert(resultData.error);
-      return;
-    }
+        if (status.status === 'done') {
+          clearInterval(pollInterval);
+          // Fetch full results
+          const resultRes = await fetch(`/api/result/${jobId}`);
+          resultData = await resultRes.json();
+          finishAnalysis();
+        }
 
-    renderResults(resultData);
-  });
+        if (status.status === 'error') {
+          clearInterval(pollInterval);
+          alert(status.message || 'Something went wrong.');
+          resetUI();
+        }
+      } catch (err) {
+        // Network blip — just keep polling
+        console.log('Poll error, retrying...', err);
+      }
+    }, 800);
 
-  eventSource.onerror = () => {
-    eventSource.close();
-    document.getElementById('btnAnalyze').disabled = false;
-    document.getElementById('btnAnalyze').textContent = 'Analyze';
-    document.getElementById('progressText').textContent = 'Connection lost. Try again.';
-  };
+  } catch (err) {
+    alert('Failed to start analysis. Check the URL and try again.');
+    resetUI();
+  }
 }
 
-// Allow Enter key
+function finishAnalysis() {
+  document.getElementById('btnAnalyze').disabled = false;
+  document.getElementById('btnAnalyze').textContent = 'Analyze';
+  document.getElementById('progress-section').style.display = 'none';
+  renderResults(resultData);
+}
+
+function resetUI() {
+  document.getElementById('btnAnalyze').disabled = false;
+  document.getElementById('btnAnalyze').textContent = 'Analyze';
+  if (pollInterval) clearInterval(pollInterval);
+}
+
 document.getElementById('urlInput').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') startAnalysis();
 });
@@ -566,7 +569,6 @@ document.getElementById('urlInput').addEventListener('keydown', (e) => {
 function renderResults(data) {
   document.getElementById('results-section').style.display = 'block';
 
-  // Stats
   const s = data.stats;
   const statsHTML = [
     { label: 'Pages', value: s.total_pages },
@@ -583,13 +585,8 @@ function renderResults(data) {
   `).join('');
   document.getElementById('statsGrid').innerHTML = statsHTML;
 
-  // Rankings table
   renderTable(data.pages);
-
-  // Issues
   renderIssues(data.issues, data.stats);
-
-  // Graph
   setTimeout(() => renderGraph(data.graph), 100);
 }
 
@@ -628,7 +625,6 @@ function sortTable(key) {
     return currentSort.asc ? va - vb : vb - va;
   });
 
-  // Re-rank
   resultData.pages.forEach((p, i) => p.rank = i + 1);
   renderTable(resultData.pages);
 }
@@ -705,7 +701,6 @@ function renderGraph(graphData) {
   const height = container.clientHeight;
   const tooltip = document.getElementById('graphTooltip');
 
-  // Clear
   d3.select('#graph-container svg').remove();
 
   const svg = d3.select('#graph-container')
@@ -713,7 +708,6 @@ function renderGraph(graphData) {
     .attr('width', width)
     .attr('height', height);
 
-  // Scale node sizes by PageRank
   const maxScore = d3.max(graphData.nodes, d => d.score) || 1;
   const sizeScale = d3.scaleSqrt().domain([0, maxScore]).range([3, 20]);
 
@@ -723,7 +717,6 @@ function renderGraph(graphData) {
     .force('center', d3.forceCenter(width / 2, height / 2))
     .force('collision', d3.forceCollide().radius(d => sizeScale(d.score) + 2));
 
-  // Links
   const link = svg.append('g')
     .selectAll('line')
     .data(graphData.links)
@@ -732,7 +725,6 @@ function renderGraph(graphData) {
     .attr('stroke-width', 0.5)
     .attr('stroke-opacity', 0.4);
 
-  // Nodes
   const node = svg.append('g')
     .selectAll('circle')
     .data(graphData.nodes)
@@ -751,7 +743,6 @@ function renderGraph(graphData) {
       .on('end', (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
     );
 
-  // Hover
   node.on('mouseover', (e, d) => {
     tooltip.style.opacity = '1';
     tooltip.innerHTML = `
