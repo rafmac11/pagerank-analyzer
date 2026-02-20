@@ -1,11 +1,12 @@
 """
 PageRank Analyzer — Backend
-FastAPI server with real-time crawl progress via SSE
+FastAPI server with background crawling and polling for progress
 """
 
-import asyncio
 import json
+import threading
 import time
+import uuid
 from collections import defaultdict
 from urllib.parse import urljoin, urlparse
 
@@ -13,12 +14,14 @@ import networkx as nx
 import requests
 from bs4 import BeautifulSoup
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
 app = FastAPI(title="PageRank Analyzer")
 templates = Jinja2Templates(directory="templates")
+
+# Store running/completed jobs
+jobs = {}
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -47,12 +50,21 @@ def shorten_url(url, base_domain):
     return url
 
 
-# ── Crawler + PageRank (generator for SSE) ───────────────────────────────────
+# ── Background Crawl + PageRank ──────────────────────────────────────────────
 
-def crawl_and_analyze(start_url, max_pages=50, alpha=0.85):
-    """
-    Generator that yields SSE events as it crawls and analyzes.
-    """
+def run_crawl(job_id, start_url, max_pages, alpha):
+    """Runs in a background thread. Updates jobs[job_id] as it progresses."""
+    job = jobs[job_id]
+
+    try:
+        _do_crawl(job, start_url, max_pages, alpha)
+    except Exception as e:
+        job["status"] = "error"
+        job["message"] = f"Analysis failed: {str(e)}"
+
+
+def _do_crawl(job, start_url, max_pages, alpha):
+    """Actual crawl logic, separated so errors are caught."""
     parsed_start = urlparse(start_url)
     base_domain = parsed_start.netloc
 
@@ -61,24 +73,19 @@ def crawl_and_analyze(start_url, max_pages=50, alpha=0.85):
     graph = nx.DiGraph()
     page_titles = {}
     page_status = {}
-    last_ping = time.time()
 
     headers = {"User-Agent": "PageRank-Analyzer/1.0 (Educational Tool)"}
     session = requests.Session()
     session.headers.update(headers)
 
-    yield _sse("status", {"message": f"Starting crawl of {base_domain}...", "phase": "crawling"})
+    job["status"] = "crawling"
+    job["message"] = f"Starting crawl of {base_domain}..."
 
     while to_visit and len(visited) < max_pages:
         url = normalize_url(to_visit.pop(0))
 
         if url in visited:
             continue
-
-        # Send keepalive ping every 10 seconds to prevent Railway timeout
-        if time.time() - last_ping > 10:
-            yield ": keepalive\n\n"
-            last_ping = time.time()
 
         try:
             response = session.get(url, timeout=5, allow_redirects=True)
@@ -111,26 +118,25 @@ def crawl_and_analyze(start_url, max_pages=50, alpha=0.85):
                 if full_url not in visited:
                     to_visit.append(full_url)
 
-            yield _sse("progress", {
-                "crawled": len(visited),
-                "max_pages": max_pages,
-                "current_url": shorten_url(url, base_domain),
-                "title": page_titles.get(url, ""),
-                "links_found": links_found,
-                "queued": len(to_visit),
-            })
+            # Update progress
+            job["crawled"] = len(visited)
+            job["current_url"] = shorten_url(url, base_domain)
+            job["current_title"] = page_titles.get(url, "")
+            job["links_found"] = links_found
+            job["queued"] = len(to_visit)
 
             time.sleep(0.15)
 
         except requests.RequestException:
-            yield _sse("error_page", {"url": shorten_url(url, base_domain)})
             continue
 
     # ── Analysis phase ───────────────────────────────────────────────────
-    yield _sse("status", {"message": "Calculating PageRank...", "phase": "analyzing"})
+    job["status"] = "analyzing"
+    job["message"] = "Calculating PageRank..."
 
     if graph.number_of_nodes() == 0:
-        yield _sse("done", {"error": "No pages found. Check the URL and try again."})
+        job["status"] = "error"
+        job["message"] = "No pages found. Check the URL and try again."
         return
 
     scores = nx.pagerank(graph, alpha=alpha)
@@ -158,10 +164,11 @@ def crawl_and_analyze(start_url, max_pages=50, alpha=0.85):
     avg_score = 1.0 / max(graph.number_of_nodes(), 1)
     weak = [p["path"] for p in pages if p["score"] < avg_score * 0.5]
 
-    # Build link data for visualization
+    # Build graph data for visualization
+    page_lookup = {p["path"]: p for p in pages}
     nodes_set = set()
     links_data = []
-    for u, v in graph.edges():
+    for u, v in list(graph.edges())[:500]:
         su = shorten_url(u, base_domain)
         sv = shorten_url(v, base_domain)
         nodes_set.add(su)
@@ -169,18 +176,17 @@ def crawl_and_analyze(start_url, max_pages=50, alpha=0.85):
         links_data.append({"source": su, "target": sv})
 
     nodes_data = []
-    for path in nodes_set:
-        full_url = next((p["url"] for p in pages if p["path"] == path), "")
-        score = next((p["score"] for p in pages if p["path"] == path), 0)
-        title = next((p["title"] for p in pages if p["path"] == path), "")
+    for path in list(nodes_set)[:200]:
+        p = page_lookup.get(path, {})
         nodes_data.append({
             "id": path,
-            "score": score,
-            "title": title,
-            "links_in": in_degrees.get(full_url, 0),
+            "score": p.get("score", 0),
+            "title": p.get("title", ""),
+            "links_in": p.get("links_in", 0),
         })
 
-    yield _sse("done", {
+    job["status"] = "done"
+    job["result"] = {
         "pages": pages,
         "stats": {
             "total_pages": graph.number_of_nodes(),
@@ -198,14 +204,10 @@ def crawl_and_analyze(start_url, max_pages=50, alpha=0.85):
             "weak": weak[:20],
         },
         "graph": {
-            "nodes": nodes_data[:200],
-            "links": links_data[:500],
+            "nodes": nodes_data,
+            "links": links_data,
         },
-    })
-
-
-def _sse(event, data):
-    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+    }
 
 
 # ── Routes ───────────────────────────────────────────────────────────────────
@@ -215,28 +217,67 @@ async def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
-@app.get("/api/analyze")
-async def analyze(url: str, max_pages: int = 50, alpha: float = 0.85):
-    # Validate
+@app.get("/api/start")
+async def start_analysis(url: str, max_pages: int = 50, alpha: float = 0.85):
+    """Start a crawl job in the background, return job_id immediately."""
     if not url.startswith("http"):
         url = "https://" + url
 
     max_pages = min(max(max_pages, 5), 200)
     alpha = min(max(alpha, 0.1), 0.99)
 
-    def generate():
-        for event in crawl_and_analyze(url, max_pages=max_pages, alpha=alpha):
-            yield event
+    job_id = str(uuid.uuid4())[:8]
+    jobs[job_id] = {
+        "status": "starting",
+        "message": "Initializing...",
+        "crawled": 0,
+        "max_pages": max_pages,
+        "current_url": "",
+        "current_title": "",
+        "links_found": 0,
+        "queued": 0,
+        "result": None,
+    }
 
-    return StreamingResponse(
-        generate(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
+    thread = threading.Thread(target=run_crawl, args=(job_id, url, max_pages, alpha), daemon=True)
+    thread.start()
+
+    return JSONResponse({"job_id": job_id})
+
+
+@app.get("/api/status/{job_id}")
+async def get_status(job_id: str):
+    """Poll this endpoint for progress updates."""
+    job = jobs.get(job_id)
+    if not job:
+        return JSONResponse({"error": "Job not found"}, status_code=404)
+
+    return JSONResponse({
+        "status": job["status"],
+        "message": job.get("message", ""),
+        "crawled": job["crawled"],
+        "max_pages": job["max_pages"],
+        "current_url": job["current_url"],
+        "current_title": job.get("current_title", ""),
+        "links_found": job["links_found"],
+        "queued": job["queued"],
+    })
+
+
+@app.get("/api/result/{job_id}")
+async def get_result(job_id: str):
+    """Get the final results once the job is done."""
+    job = jobs.get(job_id)
+    if not job:
+        return JSONResponse({"error": "Job not found"}, status_code=404)
+
+    if job["status"] == "error":
+        return JSONResponse({"error": job["message"]})
+
+    if job["status"] != "done":
+        return JSONResponse({"error": "Job not finished yet"}, status_code=202)
+
+    return JSONResponse(job["result"])
 
 
 if __name__ == "__main__":
