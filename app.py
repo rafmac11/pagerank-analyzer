@@ -156,13 +156,33 @@ def _do_crawl(job, start_url, max_pages, alpha):
             "links_in": in_degrees.get(url, 0),
             "links_out": out_degrees.get(url, 0),
             "status": page_status.get(url, 0),
+            "crawled": url in visited,
         })
 
-    # Find issues
-    orphans = [shorten_url(u, base_domain) for u, d in in_degrees.items() if d == 0]
-    dead_ends = [shorten_url(u, base_domain) for u, d in out_degrees.items() if d == 0]
+    # Find issues — ONLY among pages we actually crawled
+    # Orphans: crawled pages with no inbound links (except the start page)
+    orphans = [
+        shorten_url(u, base_domain)
+        for u in visited
+        if in_degrees.get(u, 0) == 0 and u != start_url
+    ]
+
+    # Dead ends: crawled pages with no outbound links to other internal pages
+    dead_ends = [
+        shorten_url(u, base_domain)
+        for u in visited
+        if out_degrees.get(u, 0) == 0
+    ]
+
+    # Not crawled: pages we discovered through links but didn't visit
+    not_crawled = [
+        shorten_url(u, base_domain)
+        for u in graph.nodes()
+        if u not in visited
+    ]
+
     avg_score = 1.0 / max(graph.number_of_nodes(), 1)
-    weak = [p["path"] for p in pages if p["score"] < avg_score * 0.5]
+    weak = [p["path"] for p in pages if p["score"] < avg_score * 0.5 and p["crawled"]]
 
     # Build graph data for visualization
     page_lookup = {p["path"]: p for p in pages}
@@ -190,11 +210,13 @@ def _do_crawl(job, start_url, max_pages, alpha):
         "pages": pages,
         "stats": {
             "total_pages": graph.number_of_nodes(),
+            "pages_crawled": len(visited),
             "total_links": graph.number_of_edges(),
-            "avg_links": round(graph.number_of_edges() / max(graph.number_of_nodes(), 1), 1),
+            "avg_links": round(graph.number_of_edges() / max(len(visited), 1), 1),
             "orphan_count": len(orphans),
             "dead_end_count": len(dead_ends),
             "weak_count": len(weak),
+            "not_crawled_count": len(not_crawled),
             "alpha": alpha,
             "domain": base_domain,
         },
@@ -202,6 +224,7 @@ def _do_crawl(job, start_url, max_pages, alpha):
             "orphans": orphans[:20],
             "dead_ends": dead_ends[:20],
             "weak": weak[:20],
+            "not_crawled": not_crawled[:20],
         },
         "graph": {
             "nodes": nodes_data,
